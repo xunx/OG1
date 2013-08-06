@@ -10,23 +10,23 @@ real :: alpha=0.3
 real :: delta=0.1
 real :: gamma=0.5
 
-real,parameter :: theta=0.0
+real,parameter :: theta=0.3
 integer,parameter :: maxage=3
 integer,parameter :: retage=3
 
 real :: kmax=5.5
 real :: kmin=0.0
-integer,parameter :: kgrid=51
+integer,parameter :: kgrid=100
 
 real :: gradkm(9)=(/ 0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9 /)
-real :: tol=0.00001
+real :: tol=0.001
 real :: tau=theta/(2.0+theta)	!tau=0, so pen=0 too
 real :: L=real(retage-1)/real(maxage)
-real :: kinitmax=5.5
-real :: kinitmin=0.1
-integer,parameter :: kinitgrid=55
+real :: kinitmax=0.5
+real :: kinitmin=0.2
+integer,parameter :: kinitgrid=100
 
-integer,parameter :: maxiter=100000
+integer,parameter :: maxiter=1000
 
 
 real kspace(kgrid),kdiff,kinitspace(kinitgrid),kinitstep,kinit
@@ -34,7 +34,7 @@ real v(kgrid,maxage),v3(3),kcross(maxage)
 
 integer d(kgrid,maxage),d1(maxage),iter,initm
 
-real K,w,r,pen,sum,tK,kstep,fktr(kgrid),fktw(kgrid),gradk
+real K,w,r,pen,sum,tK,tkv(kinitgrid),kstep,fktr(kgrid),fktw(kgrid),gradk
 integer js,jmin,jmax,jl,ju,i,t,kmaxindr(kgrid),kmaxindw(kgrid),gm
 
 kstep=(kmax-kmin)/real(kgrid-1)
@@ -46,17 +46,18 @@ open(unit=7,file='C:\Users\NREM\Desktop\Dropbox\cversion\ckv')
 
 888 format (4(I5,2X))
 
-do initm=1,kinitgrid
-	kinit=kinitspace(initm)
+! do initm=1,kinitgrid
+! 	kinit=kinitspace(initm)
+kinit=0.309
 
-do gm=1,9
+do gm=8,8
 	gradk=gradkm(gm)
 
 	iter=0
 	kdiff=10.0
 	K=Kinit
 
-do while((kdiff>tol).or.(iter<=maxiter))
+do while( (kdiff>tol).and.(iter<maxiter) )
 	sum=0.0
 	iter=iter+1
 	w=(1.0-alpha)*(K**alpha)*(L**(-alpha))
@@ -67,7 +68,7 @@ do while((kdiff>tol).or.(iter<=maxiter))
 	
 	! upper limit for Kt+1 known after rt, wt and pen are known
 	! Ct+Kt+1=(1+rt)Kt+(1-tau)wt 		workers upper limit fktw
-	! Ct+Kt+1=(1+rt)Kt+pen				retirees upper limit fktr
+	! Ct+Kt+1=(1+rt)Kt+pen			retirees upper limit fktr
 	! all workers upper limit for Kt+1 are same
 	! all retirees upper limit for Kt+1 are same
 	
@@ -116,6 +117,17 @@ do while((kdiff>tol).or.(iter<=maxiter))
 				
 			v(i,t)=maxval(v3)
 			d(i,t)=js	! d(i,t) is position of optimal kt+1 when kt=kspace(i) at age t
+			
+			if ( (d(i,t)==kgrid).and.(t>1) ) then	! kt+1 reached upperbound for age>1
+				print *, 'kt+1 reached upper bound'
+				print *, 'i=', i, 't=', t
+				pause
+			else if ( (d(i,t)==kgrid).and.(t==1).and.(i==1) ) then	! kt+1 reached upperbound for zero initial asset at age 1
+				print *, 'kt+1 reached upper bound'
+				print *, 'i=', i, 't=', t
+				pause
+			end if
+			
 		end do
 	end do
 	d1(1)=1	! d1(t) is position of starting kt at each age
@@ -126,6 +138,7 @@ do while((kdiff>tol).or.(iter<=maxiter))
 		sum=sum+kcross(t)
 	end do
 	tK=sum/real(maxage)
+! 	tkv(initm)=tK
 	kdiff=abs(K-tK)/K
 	
 		print *, 'iteration :', iter
@@ -134,10 +147,10 @@ do while((kdiff>tol).or.(iter<=maxiter))
 		print *, 'kdiff is:', kdiff
 	
 	K=gradk*K+(1.0-gradk)*tK
-	
+! 	write (7,*) kinit, tk
 end do
 
-print *, 'gradk= ', gradk, 'kinit= ', kinit
+! print *, 'gradk= ', gradk, 'kinit= ', kinit
 
 if (kdiff<=tol) then
 	print *, 'Converged, iter= ', iter, 'kdiff= ', kdiff
@@ -145,7 +158,7 @@ if (kdiff<=tol) then
 	print *, ''
 	print *, ''
 
-	if (any(d==kgrid)) print *, 'Kt+1 has reached upper bound of state space'
+! 	if (any(d==kgrid)) print *, 'Kt+1 has reached upper bound of state space'
 	if (any(d(:,1:maxage-1)==1)) print *, 'Kt+1 has reached lower bound of state space'
 	! print *, 'd(kgrid,maxage) is:'
 	! do i=1,kgrid
@@ -163,8 +176,8 @@ end if
 print *, ''
 print *, ''
 
-	end do ! end gradk loop
-end do ! end kinit loop
+end do ! end gradk loop
+! end do ! end kinit loop
 
 
 contains
