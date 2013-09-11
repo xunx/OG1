@@ -11,8 +11,8 @@ real :: delta=0.1
 real :: gamma=0.5
 
 ! real,parameter :: theta=0.3
-integer,parameter :: maxage=3
-integer,parameter :: retage=3
+integer,parameter :: maxage=6
+integer,parameter :: retage=5
 
 real :: kmax=5.5
 real :: kmin=0.0
@@ -36,11 +36,11 @@ real theta,tau
 integer d(kgrid,maxage),d1(maxage),iter,initm
 
 real K,w,r,pen,sum,tK,tkv(kinitgrid),kstep,fktr(kgrid),fktw(kgrid),gradk
-integer js,jmin,jmax,jl,ju,i,age,kmaxindr(kgrid),kmaxindw(kgrid),gm
+integer js,jmin,jmax,jl,ju,i,age,kmaxindr(kgrid),kmaxindw(kgrid),gm,vmax
 
 ! dynamic
 integer iss,it ! age for age index, it for time in transition
-integer,parameter :: tr=16 ! total period for transition path
+integer,parameter :: tr=22 ! total period for transition path
 
 real klong(tr),vlong(kgrid,maxage,tr),d2k(maxage,tr),tklong(tr),kdifflong(tr)
 real wlong(tr),rlong(tr),penlong(tr),fktrlong(kgrid,tr),fktwlong(kgrid,tr)
@@ -135,8 +135,7 @@ do while( (kdiff>tol).and.(iter<maxiter) )
 				
 			v(i,age)=maxval(v3)
 			d(i,age)=js	! d(i,age) is position of optimal kt+1 when kt=kspace(i) at age age
-			
-			
+
 		end do
 	end do
 	d1(1)=1	! d1(age) is position of starting kt at each age
@@ -167,27 +166,25 @@ if (kdiff<=tol) then
 	print *, 'K= ', K, 'kgrid=', kgrid
 	print *, ''
 	print *, ''
-	
-	if (any( d1==kgrid )) print *, 'Kt+1 has reached upper bound of state space'
+
+ 	if (any(d1==kgrid)) print *, 'Kt+1 has reached upper bound of state space'
+
+! connecting steady states and transition path
+	if (iss==1) then
+		klong(1:2)=tk
+		d2(:,2)=d1(:)		! initial capital at start of t=2 is same as initial steady state
+	else if (iss==2) then
+		klong(tr)=tk
+		vlong(:,:,tr)=v(:,:) ! last stage value in transition is value in final steady state
+	end if
 	
 end if ! end kdiff if
 
 
-! connecting steady states and transition path
-if ( (iss==1).and.(kdiff<=tol) ) then
-	klong(1:2)=tk
-	d2(:,2)=d1(:)   ! initial capital at start of t=2 is same as initial steady state
-	! d2(age,it) is beginning-of-period capital position each age at period it
-else if ( (iss==2).and.(kdiff<=tol) ) then
-	klong(tr)=tk
-	vlong(:,:,tr)=v(:,:) ! last stage value in transition is value in final steady state
-end if
-
-
-
 
 print *, ''
 print *, ''
+pause
 
 end do ! end iss loop
 end do ! end gradk loop
@@ -198,11 +195,12 @@ end do ! end gradk loop
 
 
 ! iteration for transition
-do gm=8,8
+do gm=3,3
     gradk=gradkm(gm)
 
 iter=0
 kdiff=10.0
+klong(2)=klong(1)
 do it=3,tr-1
     klong(it)=klong(2)+(it-2)*(klong(tr)-klong(2))/(tr-2)
 end do
@@ -213,7 +211,7 @@ do while( (kdiff>tol).and.(iter<maxiter) )
 		wlong(it)=(1.0-alpha)*(Klong(it)**alpha)*(L**(-alpha))
 		rlong(it)=alpha*(Klong(it)**(alpha-1.0))*(L**(1.0-alpha))-delta
 		penlong(it)=theta*(1.0-tau)*wlong(it)
-	
+
 		! upper limit for Ki+1 known after rt, wt and pen are known
 		! here i is position of starting K and t marks the exact time during transition
 		! cash at hand depends on both starting K and time specific interest and wage
@@ -304,7 +302,7 @@ end do ! end kdiff loop
 
 if (kdiff<=tol) then
 	print *, 'Transition Converged, iter= ', iter, 'kdiff= ', kdiff
-	if (any( d2==kgrid )) print *, 'Kt+1 has reached upper bound of state space'
+    if (any( d2==kgrid )) print *, 'kt+1 has reached upper bound of state space'
 end if
 
 end do ! end gradk loop
@@ -329,8 +327,6 @@ end if
 end function
 
 
-
-
 real function util2(i2,ktp22)
 implicit none
 integer i2
@@ -343,9 +339,6 @@ else
     util2=-10000.0
 end if
 end function
-
-
-
 
 
 end program
