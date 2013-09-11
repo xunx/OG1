@@ -11,12 +11,12 @@ real :: delta=0.1
 real :: gamma=0.5
 
 ! real,parameter :: theta=0.3
-integer,parameter :: maxage=6
-integer,parameter :: retage=5
+integer,parameter :: maxage=65
+integer,parameter :: retage=45
 
-real :: kmax=5.5
+real :: kmax=10.0
 real :: kmin=0.0
-integer,parameter :: kgrid=100
+integer,parameter :: kgrid=191
 
 real :: gradkm(9)=(/ 0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9 /)
 real :: tol=0.001
@@ -26,7 +26,8 @@ real :: kinitmax=0.5
 real :: kinitmin=0.2
 integer,parameter :: kinitgrid=100
 
-integer,parameter :: maxiter=1000
+integer,parameter :: maxiter1=100
+integer,parameter :: maxiter2=200
 
 
 real kspace(kgrid),kdiff,kinitspace(kinitgrid),kinitstep,kinit
@@ -40,7 +41,7 @@ integer js,jmin,jmax,jl,ju,i,age,kmaxindr(kgrid),kmaxindw(kgrid),gm,vmax
 
 ! dynamic
 integer iss,it ! age for age index, it for time in transition
-integer,parameter :: tr=22 ! total period for transition path
+integer,parameter :: tr=220 ! total period for transition path
 
 real klong(tr),vlong(kgrid,maxage,tr),d2k(maxage,tr),tklong(tr),kdifflong(tr)
 real wlong(tr),rlong(tr),penlong(tr),fktrlong(kgrid,tr),fktwlong(kgrid,tr)
@@ -60,23 +61,25 @@ open(unit=7,file='C:\Users\NREM\Desktop\Dropbox\cversion\ckv')
 ! kinit loop
 ! do initm=1,kinitgrid
 ! 	kinit=kinitspace(initm)
-kinit=0.73
+kinit=3.26
 
 
 ! gradk loop
-do gm=8,8
+do gm=9,9
 	gradk=gradkm(gm)
 
 ! steady state loop
 do iss=1,2
 	if (iss==1) theta=0.0
 	if (iss==2) theta=0.3
-	tau=theta/(2.0+theta)
+! 	tau=theta/(2.0+theta)
+	tau=(maxage-retage+1)*theta/( retage-1+theta*(maxage-retage+1) )
+	
 	iter=0
 	kdiff=10.0
 	K=Kinit
 
-do while( (kdiff>tol).and.(iter<maxiter) )
+do while( (kdiff>tol).and.(iter<maxiter1) )
 	iter=iter+1
 	w=(1.0-alpha)*(K**alpha)*(L**(-alpha))
 	r=alpha*(K**(alpha-1.0))*(L**(1.0-alpha))-delta
@@ -135,7 +138,8 @@ do while( (kdiff>tol).and.(iter<maxiter) )
 				
 			v(i,age)=maxval(v3)
 			d(i,age)=js	! d(i,age) is position of optimal kt+1 when kt=kspace(i) at age age
-
+			
+			
 		end do
 	end do
 	d1(1)=1	! d1(age) is position of starting kt at each age
@@ -162,23 +166,27 @@ end do ! end kdiff loop
 ! print *, 'gradk= ', gradk, 'kinit= ', kinit
 
 if (kdiff<=tol) then
-	print *, 'Steady State Converged, iter= ', iter, 'kdiff= ', kdiff
+	print *, ' Steady State Converged, iter= ', iter, 'kdiff= ', kdiff
 	print *, 'K= ', K, 'kgrid=', kgrid
 	print *, ''
 	print *, ''
 
  	if (any(d1==kgrid)) print *, 'Kt+1 has reached upper bound of state space'
 
+
 ! connecting steady states and transition path
 	if (iss==1) then
 		klong(1:2)=tk
 		d2(:,2)=d1(:)		! initial capital at start of t=2 is same as initial steady state
+		! d2(age,it) is beginning-of-period capital position each age at period it
 	else if (iss==2) then
 		klong(tr)=tk
 		vlong(:,:,tr)=v(:,:) ! last stage value in transition is value in final steady state
 	end if
 	
 end if ! end kdiff if
+
+
 
 
 
@@ -195,17 +203,16 @@ end do ! end gradk loop
 
 
 ! iteration for transition
-do gm=3,3
-    gradk=gradkm(gm)
+! do gm=9,9
+    gradk=0.98
 
 iter=0
 kdiff=10.0
-klong(2)=klong(1)
 do it=3,tr-1
     klong(it)=klong(2)+(it-2)*(klong(tr)-klong(2))/(tr-2)
 end do
 
-do while( (kdiff>tol).and.(iter<maxiter) )
+do while( (kdiff>tol).and.(iter<maxiter2) )
 	iter=iter+1
 	do it=2,tr-1
 		wlong(it)=(1.0-alpha)*(Klong(it)**alpha)*(L**(-alpha))
@@ -272,6 +279,7 @@ do while( (kdiff>tol).and.(iter<maxiter) )
 				vlong(i,age,it)=maxval(v3)
 				dlong(i,age,it)=js	! dlong(i,age,it) is position of optimal ki+1 when kt=kspace(i) at age age and time t
 
+
 			end do ! end i loop
 		end do ! end age loop
 	end do ! end it loop
@@ -281,7 +289,7 @@ do while( (kdiff>tol).and.(iter<maxiter) )
 	do it=3,tr-1
 		sum=0.0
 		do age=2,maxage
-			d2(age,it)=dlong( d2(age-1,it-1),age-1,it-1 )
+			d2(age,it)=dlong(d2(age-1,it-1),age-1,it-1)
 			d2k(age,it)=kspace(d2(age,it))
 			sum=sum+d2k(age,it)
 		end do
@@ -293,6 +301,8 @@ do while( (kdiff>tol).and.(iter<maxiter) )
     print *, 'iteration :', iter
     print *, 'gradk :', gradk
     print *, 'kdiff is:', kdiff
+	print *, ''
+	print *, ''
 	
     do it=3,tr-1
 		klong(it)=gradk*klong(it)+(1.0-gradk)*tklong(it)
@@ -301,11 +311,11 @@ do while( (kdiff>tol).and.(iter<maxiter) )
 end do ! end kdiff loop
 
 if (kdiff<=tol) then
-	print *, 'Transition Converged, iter= ', iter, 'kdiff= ', kdiff
+	print *, 'Transition converged, iter= ', iter, 'kdiff= ', kdiff
     if (any( d2==kgrid )) print *, 'kt+1 has reached upper bound of state space'
 end if
 
-end do ! end gradk loop
+! end do ! end gradk loop
 
 do it=1,tr
     write (7,*) klong(it)
@@ -327,6 +337,7 @@ end if
 end function
 
 
+
 real function util2(i2,ktp22)
 implicit none
 integer i2
@@ -339,6 +350,7 @@ else
     util2=-10000.0
 end if
 end function
+
 
 
 end program
